@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from elevenlabs.client import ElevenLabs
 from elevenlabs.conversational_ai.conversation import Conversation
 from elevenlabs.conversational_ai.default_audio_interface import DefaultAudioInterface
+from memory import SessionMemory
 
 def main():
     # Load environment variables from the .env file
@@ -20,6 +21,9 @@ def main():
         print("Please set it in your .env file or environment variables.", file=sys.stderr)
         sys.exit(1)
 
+    # In-memory session context for tracking turns and conversation flow
+    memory = SessionMemory()
+
     # Initialize the ElevenLabs client
     client = ElevenLabs(api_key=api_key) if api_key else ElevenLabs()
 
@@ -27,12 +31,14 @@ def main():
     print("Setting up audio interface...", flush=True)
     audio_interface = DefaultAudioInterface()
 
-    # Configure callbacks to print the conversation
+    # Configure callbacks to update session memory and display turns
     def on_user_transcript(transcript):
-        print(f"\n[You]: {transcript}", flush=True)
+        memory.add_turn("user", transcript)
+        print(f"\n[You] (#{memory.turn_count}): {transcript}", flush=True)
 
     def on_agent_response(response):
-        print(f"\n[AURA]: {response}", flush=True)
+        memory.add_turn("agent", response)
+        print(f"\n[AURA] (#{memory.turn_count}): {response}", flush=True)
 
     # Set up the conversation
     print("Initializing AURA (ElevenLabs Agent)...", flush=True)
@@ -60,6 +66,15 @@ def main():
         # Keep the program running until the conversation ends
         conversation_id = conversation.wait_for_session_end()
         print(f"\nConversation ended. (Session ID: {conversation_id})", flush=True)
+
+        # Display in-memory session summary
+        summary = memory.get_session_summary()
+        print(
+            f"Session Summary: {summary['total_turns']} total turns "
+            f"({summary['user_turns']} user, {summary['agent_turns']} AURA) "
+            f"over {summary['duration_seconds']}s",
+            flush=True
+        )
     except Exception as e:
         print(f"\nAn error occurred: {e}", file=sys.stderr, flush=True)
 
